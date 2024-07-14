@@ -16,15 +16,20 @@ abstract class SimpleSurface(context: Context, attrs: AttributeSet?) : SurfaceVi
 
     init {
         holder.addCallback(object : SurfaceHolder.Callback {
-            override fun surfaceChanged(holder: SurfaceHolder?, format: Int, width: Int, height: Int) {
-            }
-
-            override fun surfaceDestroyed(holder: SurfaceHolder?) {
-                active.set(false)
-            }
-
-            override fun surfaceCreated(holder: SurfaceHolder?) {
+            override fun surfaceCreated(holder: SurfaceHolder) {
                 active.set(true)
+            }
+
+            override fun surfaceChanged(
+                holder: SurfaceHolder,
+                format: Int,
+                width: Int,
+                height: Int,
+            ) {
+            }
+
+            override fun surfaceDestroyed(holder: SurfaceHolder) {
+                active.set(false)
             }
         })
     }

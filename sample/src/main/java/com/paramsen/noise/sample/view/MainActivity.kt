@@ -1,6 +1,7 @@
 package com.paramsen.noise.sample.view
 
 import android.Manifest.permission.RECORD_AUDIO
+import android.annotation.SuppressLint
 import android.content.pm.PackageManager.PERMISSION_GRANTED
 import android.os.Build
 import android.os.Bundle
@@ -16,15 +17,17 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.view.menu.ActionMenuItemView
 import com.paramsen.noise.Noise
 import com.paramsen.noise.sample.R
+import com.paramsen.noise.sample.databinding.ActivityMainBinding
 import com.paramsen.noise.sample.source.AudioSource
 import io.reactivex.Flowable
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.functions.Function
 import io.reactivex.schedulers.Schedulers
-import kotlinx.android.synthetic.main.activity_main.*
 
 class MainActivity : AppCompatActivity() {
-    val TAG = javaClass.simpleName!!
+    private lateinit var binding: ActivityMainBinding
+
+    val TAG = javaClass.simpleName
 
     val disposable: CompositeDisposable = CompositeDisposable()
 
@@ -35,8 +38,8 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
-
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        setContentView(binding.root)
         scheduleAbout()
     }
 
@@ -61,24 +64,25 @@ class MainActivity : AppCompatActivity() {
 
         //AudioView
         disposable.add(src.observeOn(Schedulers.newThread())
-                .doOnNext { p0.next() }
-                .subscribe(audioView::onWindow, { e -> Log.e(TAG, e.message) }))
+            .doOnNext { p0.next() }
+            .subscribe(binding.audioView::onWindow) { e -> e.message?.let { Log.e(TAG, it) } })
         //FFTView
         disposable.add(src.observeOn(Schedulers.newThread())
-                .doOnNext { p1.next() }
-                .map {
-                    for (i in it.indices)
-                        it[i] *= 2.0f
-                    return@map it
-                }
-                .map { noise.fft(it, FloatArray(4096 + 2)) }
-                .doOnNext { p3.next() }
-                .subscribe({ fft ->
-                    fftHeatMapView.onFFT(fft)
-                    fftBandView.onFFT(fft)
-                }, { e -> Log.e(TAG, e.message) }))
+            .doOnNext { p1.next() }
+            .map {
+                for (i in it.indices)
+                    it[i] *= 2.0f
+                return@map it
+            }
+            .map { noise.fft(it, FloatArray(4096 + 2)) }
+            .doOnNext { p3.next() }
+            .subscribe({ fft ->
+                binding.fftHeatMapView.onFFT(fft)
+                binding.fftBandView.onFFT(fft)
+            }, { e -> e.message?.let { Log.e(TAG, it) } })
+        )
 
-        tip.schedule()
+        binding.tip.schedule()
     }
 
     /**
@@ -122,18 +126,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun accumulate1(o: Flowable<FloatArray>): Flowable<FloatArray> {
-        return o.window(6).flatMapSingle { it.collect({ ArrayList<FloatArray>() }, { a, b -> a.add(b) }) }.map { window ->
-            val out = FloatArray(4096)
-            var c = 0
-            for (each in window) {
-                if (c + each.size >= 4096)
-                    break
+        return o.window(6)
+            .flatMapSingle { it.collect({ ArrayList<FloatArray>() }, { a, b -> a.add(b) }) }
+            .map { window ->
+                val out = FloatArray(4096)
+                var c = 0
+                for (each in window) {
+                    if (c + each.size >= 4096)
+                        break
 
-                System.arraycopy(each, 0, out, c, each.size)
-                c += each.size - 1
+                    System.arraycopy(each, 0, out, c, each.size)
+                    c += each.size - 1
+                }
+                out
             }
-            out
-        }
     }
 
     private fun requestAudio(): Boolean {
@@ -145,7 +151,11 @@ class MainActivity : AppCompatActivity() {
         return true
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
 
         if (grantResults[0] == PERMISSION_GRANTED)
@@ -157,15 +167,15 @@ class MainActivity : AppCompatActivity() {
         return true
     }
 
-    override fun onOptionsItemSelected(item: MenuItem?): Boolean {
-        info.onShow()
-
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        binding.info.onShow()
         return true
     }
 
+    @SuppressLint("RestrictedApi")
     private fun scheduleAbout() {
-        container.postDelayed({
-            if (!info.showed) {
+        binding.container.postDelayed({
+            if (!binding.info.showed) {
                 try {
                     val anim = AnimationUtils.loadAnimation(this, R.anim.nudge).apply {
                         repeatCount = 3
@@ -175,11 +185,11 @@ class MainActivity : AppCompatActivity() {
                         onTerminate { scheduleAbout() }
                     }
 
-                    (((((container.parent.parent as ViewGroup).getChildAt(1) as ViewGroup) //container
-                            .getChildAt(0) as ViewGroup) //actionbar
-                            .getChildAt(1) as ActionMenuView)
-                            .getChildAt(0) as ActionMenuItemView)
-                            .startAnimation(anim)
+                    (((((binding.container.parent.parent as ViewGroup).getChildAt(1) as ViewGroup) //container
+                        .getChildAt(0) as ViewGroup) //actionbar
+                        .getChildAt(1) as ActionMenuView)
+                        .getChildAt(0) as ActionMenuItemView)
+                        .startAnimation(anim)
                 } catch (e: Exception) {
                     Log.e(TAG, "Could not animate nudge / ${Log.getStackTraceString(e)}")
                 }
